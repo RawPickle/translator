@@ -1,2 +1,136 @@
-<h1>Our Website</h1>
-<p style="color: blue;">반갑습니다!</p>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemini Translator</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { max-width: 900px; margin: 2rem auto; font-family: system-ui, sans-serif; padding: 0 1rem; }
+    header { margin-bottom: 1rem; }
+    label { display:block; font-weight:600; margin-top:1rem; }
+    input, select, textarea, button { width:100%; padding:.6rem .7rem; margin-top:.4rem; }
+    textarea { min-height: 160px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .small { font-size:.9rem; opacity:.8; }
+    .error { color: #c00; white-space: pre-wrap; }
+    .ok { color: #0a0; white-space: pre-wrap; }
+    footer { margin-top: 2rem; font-size:.85rem; opacity:.75; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Gemini Translator</h1>
+    <p class="small">서버는 FastAPI /translate 엔드포인트를 사용. GitHub Pages가 https이므로 API도 https여야 함(혼합 콘텐츠 차단 방지).</p>
+  </header>
+
+  <section>
+    <label for="apiBase">API Base URL</label>
+    <input id="apiBase" placeholder="https://api.example.com" value="https://YOUR-API-DOMAIN" />
+
+    <div class="row">
+      <div>
+        <label for="target">Target language</label>
+        <select id="target">
+          <option value="ko">Korean (ko)</option>
+          <option value="en">English (en)</option>
+          <option value="ja">Japanese (ja)</option>
+          <option value="zh">Chinese (zh)</option>
+          <option value="de">German (de)</option>
+          <option value="fr">French (fr)</option>
+          <option value="es">Spanish (es)</option>
+        </select>
+      </div>
+      <div>
+        <label for="source">Source language (optional)</label>
+        <input id="source" placeholder="auto-detect if empty" />
+      </div>
+    </div>
+
+    <label for="text">Text</label>
+    <textarea id="text" placeholder="번역할 텍스트를 입력"></textarea>
+
+    <label for="apiKey">API Key (optional; 권장: Authorization 헤더)</label>
+    <input id="apiKey" type="password" placeholder="YOUR_GEMINI_API_KEY (브라우저에 키 노출 주의)" />
+
+    <div class="row" style="margin-top:1rem;">
+      <button id="translateBtn">Translate</button>
+      <button id="clearBtn" type="button">Clear</button>
+    </div>
+
+    <label for="output" style="margin-top:1.2rem;">Result</label>
+    <textarea id="output" readonly></textarea>
+
+    <pre id="status" class="small"></pre>
+  </section>
+
+  <footer>
+    <p>보안 주의: 공개 페이지에 개인 API 키를 넣지 않는 것이 안전. 가능하면 서버에서 키를 관리.</p>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function translate() {
+      const base = $("apiBase").value.trim().replace(/\/+$/,'');
+      const text = $("text").value;
+      const target = $("target").value.trim();
+      const source = $("source").value.trim();
+      const apiKey = $("apiKey").value.trim();
+
+      $("status").textContent = "";
+      $("output").value = "";
+      const btn = $("translateBtn");
+      btn.disabled = true; btn.textContent = "Translating...";
+
+      try {
+        if (!base) throw new Error("API Base URL이 필요합니다. 예: https://api.example.com");
+        if (!text) throw new Error("번역할 텍스트를 입력하세요.");
+
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) headers["Authorization"] = "Bearer " + apiKey; // 권장 헤더
+        // 또는 X-API-Key 헤더: headers["X-API-Key"] = apiKey;
+
+        const body = {
+          text,
+          target_language: target,
+          source_language: source || null
+          // body에 api_key로 보내고 싶다면 아래 주석 해제(운영권장X)
+          // , api_key: apiKey || undefined
+        };
+
+        const res = await fetch(`${base}/translate`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+
+        const isJson = res.headers.get("content-type")?.includes("application/json");
+        const payload = isJson ? await res.json() : await res.text();
+
+        if (!res.ok) {
+          const detail = isJson ? (payload?.detail || JSON.stringify(payload)) : payload;
+          throw new Error(`HTTP ${res.status}: ${detail}`);
+        }
+
+        $("output").value = payload.translated_text || "";
+        $("status").textContent = "OK";
+        $("status").className = "ok";
+      } catch (err) {
+        $("status").textContent = String(err?.message || err);
+        $("status").className = "error";
+      } finally {
+        btn.disabled = false; btn.textContent = "Translate";
+      }
+    }
+
+    $("translateBtn").addEventListener("click", (e) => { e.preventDefault(); translate(); });
+    $("clearBtn").addEventListener("click", (e) => {
+      e.preventDefault();
+      $("text").value = "";
+      $("output").value = "";
+      $("status").textContent = "";
+    });
+  </script>
+</body>
+</html>
